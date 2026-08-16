@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Simulates natural interactive human typing into RimLang REPL,
-capturing both Example 1 (Original) and Example 2 (Creative) sessions into rimlang.gif.
+capturing modern RimLang syntax (User Defined Functions, QA Pairs, Generic Delimiters) into rimlang.gif.
 """
 
 import os
@@ -27,7 +27,7 @@ def get_font(size=18):
                 continue
     return ImageFont.load_default()
 
-def render_terminal_frame(lines, width=820, height=520):
+def render_terminal_frame(lines, width=860, height=540):
     img = Image.new("RGB", (width, height), color="#1e1e2e")
     draw = ImageDraw.Draw(img)
     font = get_font(18)
@@ -38,8 +38,8 @@ def render_terminal_frame(lines, width=820, height=520):
     draw.ellipse([(32, 12), (42, 22)], fill="#f9e2af")
     draw.ellipse([(50, 12), (60, 22)], fill="#a6e3a1")
 
-    title_text = "림의 유머극장 (Hybrid NLP & LLM)"
-    draw.text((width // 2 - 120, 8), title_text, fill="#a6adc8", font=font)
+    title_text = "사도 림의 유머극장 (C17 & Kiwi & EXAONE 3.5)"
+    draw.text((width // 2 - 160, 8), title_text, fill="#a6adc8", font=font)
 
     y = 50
     line_height = 24
@@ -50,9 +50,9 @@ def render_terminal_frame(lines, width=820, height=520):
     for line in visible_lines:
         if line.startswith("림>"):
             draw.text((20, y), line, fill="#89b4fa", font=font)
-        elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "메론빵", "바나나킥", "카놀라유", "킹받네", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
+        elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "메론빵", "바나나킥", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
             draw.text((20, y), line, fill="#f5c2e7", font=font)
-        elif "거짓" in line or "참" in line:
+        elif "거짓" in line or "참" in line or "[결산완료]" in line:
             draw.text((20, y), line, fill="#a6e3a1", font=font)
         else:
             draw.text((20, y), line, fill="#cdd6f4", font=font)
@@ -62,17 +62,23 @@ def render_terminal_frame(lines, width=820, height=520):
 
 def main():
     commands = [
-        # 예제 1 (원작 질문식)
-        "케이크가 지르는 비명은...?",
-        "빵 중에 가장 예의가 없는 빵은?",
-        "이제 그 냉각기가 있으니까...난 이제 냉각기로도 무쓸모가 된 거잖아요...?",
-        "해골 가면을 쓴 림과, 가면을 안 쓴 림으로 나누어 게임을 했지요...?",
-        "친구가 없을 때 낫이 혼자 나의 개그를 들어줬었거든요...?",
+        # 1. 사용자 함수 정의 블록 (림하하... ~ 하하...림...)
+        "림하하...",
+        "통모짜핫도그",
         "통모짜핫도그의 반대말은?",
-        # 예제 2 (창작 및 방언 호환)
-        "바나나가 웃으면...?",
-        "차가 지나가다 사람을 치면...?",
-        "왕이 바다에 빠지면...?",
+        "요즘잘자쿨냥이. 풉. 푸흐흐흐....",
+        "하하...림...",
+        # 2. 함수 호출
+        "통모짜핫도그",
+        # 3. 비명 소리 추출 문답
+        "케이크가 지르는 비명은...?",
+        "케이크가 비명을 지르면 이크.",
+        # 4. 접두 구분자 기반 축약자 (.....)
+        "이제 .....냉각기 .....무쓸모인거에요...푸훗.",
+        # 5. 다대일 매핑
+        "빵 중에 가장 예의가 없는 빵은?",
+        "그건 바로...메론빵....",
+        # 6. 세션 종료
         "끝."
     ]
 
@@ -136,14 +142,14 @@ def main():
         for ch in cmd:
             os.write(master, ch.encode("utf-8"))
             read_output(0.01)
-            capture_frame(35)
-            time.sleep(0.02)
+            capture_frame(30)
+            time.sleep(0.015)
 
-        time.sleep(0.12)
+        time.sleep(0.1)
         os.write(master, b"\n")
-        read_output(0.35)
-        capture_frame(600)
-        time.sleep(0.15)
+        read_output(0.3)
+        capture_frame(500)
+        time.sleep(0.12)
 
     try:
         proc.wait(timeout=1.0)
