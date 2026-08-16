@@ -50,7 +50,7 @@ def render_terminal_frame(lines, width=860, height=540):
     for line in visible_lines:
         if line.startswith("림>"):
             draw.text((20, y), line, fill="#89b4fa", font=font)
-        elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "메론빵", "바나나킥", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
+        elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "바나나킥", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
             draw.text((20, y), line, fill="#f5c2e7", font=font)
         elif "거짓" in line or "참" in line or "[결산완료]" in line:
             draw.text((20, y), line, fill="#a6e3a1", font=font)
@@ -75,9 +75,9 @@ def main():
         "케이크가 비명을 지르면 이크.",
         # 4. 접두 구분자 기반 축약자 (.....)
         "이제 .....냉각기 .....무쓸모인거에요...푸훗.",
-        # 5. 다대일 매핑
-        "빵 중에 가장 예의가 없는 빵은?",
-        "그건 바로...메론빵....",
+        # 5. 삼항연산자 조건 완성 분기
+        "해골 가면을 쓴 림과, 가면을 안 쓴 림으로 나누어 게임을 했지요.",
+        "가면을 쓴 림은 바로 낯.가.림.입니다. 푸흡...",
         # 6. 세션 종료
         "끝."
     ]
