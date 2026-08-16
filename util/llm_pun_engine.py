@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 EXAONE 3.5 (2.4B) Bilingual Korean Pun Reasoning Engine for RimLang.
-Emphasizes classic Korean dad-jokes (한영 발음 음차 결합 / 동음이의어).
+Zero-hardcoding, purely prompt-instructed LLM oracle bridge.
 """
 
 import os
@@ -13,23 +13,11 @@ import re
 OLLAMA_ENDPOINT = os.environ.get("RIMLANG_OLLAMA_ENDPOINT", "http://127.0.0.1:11434/api/generate")
 OLLAMA_MODEL = os.environ.get("RIMLANG_OLLAMA_MODEL", "exaone3.5:2.4b")
 
-SYSTEM_PROMPT = """[System Instruction]
-You are Rim, an esoteric comedian apostle from the Korean subculture game Trickcal Revive.
-You answer with classic Korean dad-jokes / puns based on phonetic similarities (Korean-English transliterations like laugh/kick -> 킥, news -> 뉴스, etc.).
-Always respond with the single exact humorous punchline sentence in pure Korean. Do not add markdown bolding, emojis, or explanations.
+SYSTEM_PROMPT = """당신은 한국어 썰렁개그와 언어유희를 생성하는 AI입니다.
+주어진 질문에 대해 한국어 단어의 동음이의어나 연관 언어유희를 활용하여 완성된 문장 한 줄만 응답하세요. 설명이나 부연은 절대 하지 마세요.
 
-Examples:
-Q: 소가 서울에 가면...?
-A: 소가 서울에 가면 소설....
-
-Q: 오리가 얼면...?
-A: 오리가 얼면 언덕. 풉.
-
-Q: 바나나가 웃으면...?
-A: 바나나가 웃으면 바나나킥. 푸하하....
-
-Q: {question}
-A:"""
+질문: {question}
+대답:"""
 
 def evaluate_with_llm(prompt_text, timeout=12.0):
     prompt = SYSTEM_PROMPT.format(question=prompt_text)
@@ -38,7 +26,8 @@ def evaluate_with_llm(prompt_text, timeout=12.0):
         "prompt": prompt,
         "stream": False,
         "options": {
-            "temperature": 0.0
+            "temperature": 0.3,
+            "stop": ["\n", "질문:"]
         }
     }
     try:
@@ -49,18 +38,14 @@ def evaluate_with_llm(prompt_text, timeout=12.0):
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            if "response" in data:
-                res = data["response"].strip().split("\n")[0].strip()
-                if res.startswith("A:"): res = res[2:].strip()
-                if res.startswith("답변:"): res = res[3:].strip()
-                res = re.sub(r'[\*\"`\']', '', res)
-                res = re.sub(r'[^\w\s\.\,\?\!\~\…\-\:]', '', res).strip()
-                if res:
-                    return res
+            ans = data.get("response", "").strip()
+            ans = re.sub(r'^(대답:|\s*[\"\'])', '', ans).strip()
+            ans = re.sub(r'[\"\']$', '', ans).strip()
+            return ans
     except Exception:
-        pass
-    return None
+        return ""
 
 if __name__ == "__main__":
-    q = sys.argv[1] if len(sys.argv) > 1 else "바나나가 웃으면...?"
-    print(evaluate_with_llm(q))
+    if len(sys.argv) > 1:
+        q = sys.argv[1]
+        print(evaluate_with_llm(q))

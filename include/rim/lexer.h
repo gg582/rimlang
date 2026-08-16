@@ -14,6 +14,7 @@ extern "C" {
 
 typedef enum {
     TOK_EOF,
+    TOK_NEWLINE,
     TOK_QUESTION_END,  // ...? or ?
     TOK_ANSWER_END,    // . or ... or 푸훗. or 푸흡... or 후후후....
     TOK_IDENT,

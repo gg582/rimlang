@@ -1,6 +1,6 @@
 /**
  * @file parser.c
- * @brief Semantic Dialogue Parser with Guard Blocks & LLM control.
+ * @brief Semantic Dialogue Parser with Functions (림하하... ~ 하하...림...) & Fine-Grained Blocks.
  */
 
 #include "rim/parser.h"
@@ -122,6 +122,14 @@ AstNode *ast_new_input(const char *prompt, const char *target_var) {
     return n;
 }
 
+AstNode *ast_new_func_def(const char *name, AstNode *body) {
+    AstNode *n = calloc(1, sizeof(AstNode));
+    n->type = NODE_FUNC_DEF;
+    snprintf(n->func_def.func_name, sizeof(n->func_def.func_name), "%s", name ? name : "");
+    n->func_def.body = body;
+    return n;
+}
+
 AstNode *ast_new_llm_query(AstNode *expr) {
     AstNode *n = calloc(1, sizeof(AstNode));
     n->type = NODE_LLM_QUERY;
@@ -202,6 +210,9 @@ void ast_free(AstNode *node) {
         case NODE_PRINT:
             ast_free(node->print_stmt.expr);
             break;
+        case NODE_FUNC_DEF:
+            ast_free(node->func_def.body);
+            break;
         case NODE_LLM_QUERY:
             ast_free(node->llm_query_stmt.expr);
             break;
@@ -230,140 +241,106 @@ static void parser_advance(Parser *p) {
     p->peek = lexer_next(&p->lexer);
 }
 
-static void parse_dynamic_footer_section(const char *src) {
-    joke_clear_dynamic_maps();
-    const char *sep = strstr(src, "~~~~~");
-    if (!sep) sep = strstr(src, "~~~");
-    if (!sep) return;
+static void skip_newlines(Parser *p) {
+    while (p->current.type == TOK_NEWLINE) {
+        parser_advance(p);
+    }
+}
 
-    sep += 3;
-    while (*sep == '~' || *sep == ' ' || *sep == '\r' || *sep == '\n') sep++;
+static void read_line_tokens(Parser *p, char *buf, size_t buf_sz) {
+    buf[0] = '\0';
+    skip_newlines(p);
 
-    char line_buf[256];
-    const char *p = sep;
-    while (*p) {
-        size_t idx = 0;
-        while (*p && *p != '\n' && *p != '\r' && idx < sizeof(line_buf) - 1) {
-            line_buf[idx++] = *p++;
-        }
-        line_buf[idx] = '\0';
-        while (*p == '\n' || *p == '\r') p++;
-
-        if (line_buf[0] == '#' || (line_buf[0] == '/' && line_buf[1] == '/')) {
-            continue;
-        }
-
-        if (line_buf[0]) {
-            char key[128] = {0};
-            char val[128] = {0};
-            char *p_is = strstr(line_buf, "은");
-            if (!p_is) p_is = strstr(line_buf, "는");
-            if (!p_is) p_is = strstr(line_buf, "->");
-            if (!p_is) p_is = strstr(line_buf, ":");
-
-            if (p_is) {
-                size_t klen = p_is - line_buf;
-                strncpy(key, line_buf, klen);
-                key[klen] = '\0';
-
-                if (strncmp(p_is, "은", 3) == 0 || strncmp(p_is, "는", 3) == 0) {
-                    p_is += 3;
-                } else if (strncmp(p_is, "->", 2) == 0) {
-                    p_is += 2;
-                } else {
-                    p_is += 1;
-                }
-
-                while (*p_is == ' ') p_is++;
-                strncpy(val, p_is, sizeof(val) - 1);
-
-                size_t vlen = strlen(val);
-                while (vlen > 0 && (val[vlen-1] == '.' || val[vlen-1] == ' ' || val[vlen-1] == '\r')) {
-                    val[--vlen] = '\0';
-                }
-
-                size_t key_len = strlen(key);
-                while (key_len > 0 && (key[key_len-1] == ' ')) key[--key_len] = '\0';
-
-                joke_add_dynamic_map(key, val);
+    while (p->current.type != TOK_EOF && p->current.type != TOK_NEWLINE) {
+        if (buf[0] != '\0') {
+            size_t blen = strlen(buf);
+            if (blen + 1 < buf_sz && p->current.text[0] != '.' && p->current.text[0] != '?' && p->current.text[0] != '!') {
+                strcat(buf, " ");
             }
         }
+        strncat(buf, p->current.text, buf_sz - strlen(buf) - 1);
+        parser_advance(p);
+    }
+    if (p->current.type == TOK_NEWLINE) {
+        parser_advance(p);
     }
 }
 
 AstNode *parser_parse_qa_pair(Parser *p) {
+    skip_newlines(p);
     if (p->current.type == TOK_EOF) return NULL;
 
-    if (strncmp(p->current.text, "~~~", 3) == 0) {
+    char line1[512] = {0};
+    char line2[512] = {0};
+
+    // Check for "림하하..." 함수 정의 블록 (종료: "하하..림..." or "하하...림...")
+    if (strncmp(p->current.text, "림하하...", 9) == 0) {
+        parser_advance(p);
+        read_line_tokens(p, line1, sizeof(line1)); // function name
+        AstNode *body_block = ast_new_block();
         while (p->current.type != TOK_EOF) {
+            skip_newlines(p);
+            if (strstr(p->current.text, "하하..림") || strstr(p->current.text, "하하...림")) {
+                parser_advance(p);
+                break;
+            }
+            AstNode *inner = parser_parse_qa_pair(p);
+            if (inner) {
+                ast_block_append(body_block, inner);
+            }
+        }
+        return ast_new_func_def(line1, body_block);
+    }
+
+    // Check for "림..." 출력 지시자
+    if (strcmp(p->current.text, "림...") == 0 || (strcmp(p->current.text, "림") == 0 && (strcmp(p->peek.text, "...") == 0 || strcmp(p->peek.text, "....") == 0))) {
+        if (strcmp(p->current.text, "림") == 0) {
+            parser_advance(p);
+            parser_advance(p);
+        } else {
             parser_advance(p);
         }
-        return NULL;
+        read_line_tokens(p, line1, sizeof(line1));
+        return ast_new_print(ast_new_literal(rim_str(line1)));
     }
 
-    char q_buf[512] = {0};
-    bool is_realtime = false;
-    bool is_print_line = false;
+    // 1. Read first line
+    read_line_tokens(p, line1, sizeof(line1));
 
-    if (strcmp(p->current.text, "림") == 0 && (strcmp(p->peek.text, "...") == 0 || strcmp(p->peek.text, "....") == 0)) {
-        is_print_line = true;
-        parser_advance(p);
-        parser_advance(p);
+    // 2. Read paired second line
+    skip_newlines(p);
+    if (p->current.type != TOK_EOF &&
+        strncmp(p->current.text, "교주님", 6) != 0 &&
+        strncmp(p->current.text, "크흡", 6) != 0 &&
+        strncmp(p->current.text, "흡...흐흡", 9) != 0 &&
+        strncmp(p->current.text, "림하하", 9) != 0 &&
+        !strstr(p->current.text, "하하..림") &&
+        !strstr(p->current.text, "하하...림") &&
+        !strstr(line1, "흘려서") && !strstr(line1, "후라이팬")) {
+        
+        read_line_tokens(p, line2, sizeof(line2));
     }
 
-    int start_line = p->current.line;
-
-    while (p->current.type != TOK_EOF) {
-        if (strncmp(p->current.text, "~~~", 3) == 0) {
-            while (p->current.type != TOK_EOF) parser_advance(p);
-            break;
-        }
-        if (strcmp(p->current.text, "이제") == 0) {
-            is_realtime = true;
-        }
-        if (strlen(q_buf) + strlen(p->current.text) + 2 < sizeof(q_buf)) {
-            if (q_buf[0] != '\0') strcat(q_buf, " ");
-            strcat(q_buf, p->current.text);
-        }
-        if (p->current.type == TOK_QUESTION_END || p->current.type == TOK_ANSWER_END) {
-            parser_advance(p);
-            break;
-        }
-        if (p->peek.line > start_line) {
-            parser_advance(p);
-            break;
-        }
-        parser_advance(p);
+    // (A) 문답 구문2가 있는 경우 -> 구문2 반환
+    if (line2[0] != '\0') {
+        return ast_new_literal(rim_str(line2));
     }
 
-    AstNode *result = NULL;
-    const char *target_sentence = q_buf;
-
-    // 1. "림..." 출력문
-    if (is_print_line) {
-        result = ast_new_print(ast_new_literal(rim_str(target_sentence)));
-        result->is_realtime = is_realtime;
-        return result;
+    // (B) 단일 구문 처리
+    // 1. "교주님...?" 질문식
+    if (strstr(line1, "교주님") && strstr(line1, "?")) {
+        return ast_new_literal(rim_str("교주님...?"));
     }
 
-    // 2. "교주님...?" 질문식
-    if (strstr(target_sentence, "교주님") && (strstr(target_sentence, "?") || strstr(target_sentence, "...?"))) {
-        result = ast_new_literal(rim_str("교주님...?"));
-        result->is_realtime = is_realtime;
-        return result;
+    // 2. "흡..." 입력문
+    if (strstr(line1, "흡...") && !strstr(line1, "흐흡")) {
+        return ast_new_input("흡...", "ans");
     }
 
-    // 3. "흡..." 입력문
-    if (strstr(target_sentence, "흡...") && !strstr(target_sentence, "흐흡")) {
-        result = ast_new_input("흡...", "ans");
-        result->is_realtime = is_realtime;
-        return result;
-    }
-
-    // 4. SBN OISC 명령어
-    if (strstr(target_sentence, "흘려서") || strstr(target_sentence, "흘려")) {
+    // 3. SBN OISC 명령어
+    if (strstr(line1, "흘려서") || strstr(line1, "흘려")) {
         int64_t a = 0, b = 0, c = 0;
-        const char *tok1 = target_sentence;
+        const char *tok1 = line1;
         while (*tok1 && !isdigit((unsigned char)*tok1)) tok1++;
         if (*tok1) {
             a = strtoll(tok1, (char **)&tok1, 10);
@@ -376,15 +353,13 @@ AstNode *parser_parse_qa_pair(Parser *p) {
                 }
             }
         }
-        result = ast_new_sbn(ast_new_literal(rim_int(a)), ast_new_literal(rim_int(b)), ast_new_literal(rim_int(c)));
-        result->is_realtime = is_realtime;
-        return result;
+        return ast_new_sbn(ast_new_literal(rim_int(a)), ast_new_literal(rim_int(b)), ast_new_literal(rim_int(c)));
     }
 
-    // 5. FlipJump OISC 명령어
-    if (strstr(target_sentence, "후라이팬") || strstr(target_sentence, "뒤집")) {
+    // 4. FlipJump OISC 명령어
+    if (strstr(line1, "후라이팬") || strstr(line1, "뒤집")) {
         int64_t a = 0, b = 0, c = 0;
-        const char *tok1 = target_sentence;
+        const char *tok1 = line1;
         while (*tok1 && !isdigit((unsigned char)*tok1)) tok1++;
         if (*tok1) {
             a = strtoll(tok1, (char **)&tok1, 10);
@@ -397,33 +372,30 @@ AstNode *parser_parse_qa_pair(Parser *p) {
                 }
             }
         }
-        result = ast_new_flipjump(ast_new_literal(rim_int(a)), ast_new_literal(rim_int(b)), ast_new_literal(rim_int(c)));
-        result->is_realtime = is_realtime;
-        return result;
+        return ast_new_flipjump(ast_new_literal(rim_int(a)), ast_new_literal(rim_int(b)), ast_new_literal(rim_int(c)));
     }
 
-    // 6. Kiwi 형태소 및 LLM 질의 연동
-    NlpAnalysisResult nlp;
-    if (kor_nlp_analyze(target_sentence, &nlp) && nlp.punchline[0] != '\0') {
-        result = ast_new_literal(rim_str(nlp.punchline));
-        result->is_realtime = is_realtime;
-        return result;
+    // 5. 질문식일 경우에만 형태소/LLM 오라클 질의, 단어/변수 호출식은 literal로 평가
+    if (strstr(line1, "?")) {
+        NlpAnalysisResult nlp;
+        if (kor_nlp_analyze(line1, &nlp) && nlp.punchline[0] != '\0') {
+            return ast_new_literal(rim_str(nlp.punchline));
+        }
     }
 
-    result = ast_new_print(ast_new_literal(rim_str(target_sentence)));
-    result->is_realtime = is_realtime;
-    return result;
+    return ast_new_literal(rim_str(line1));
 }
 
 AstNode *parser_parse_program(Parser *p) {
     kor_nlp_init();
-    parse_dynamic_footer_section(p->lexer.src);
 
     AstNode *root_block = ast_new_block();
     AstNode *active_block = root_block;
 
     while (p->current.type != TOK_EOF) {
-        // "크흡..." 시작 블록 감지
+        skip_newlines(p);
+        if (p->current.type == TOK_EOF) break;
+
         if (strncmp(p->current.text, "크흡...", strlen("크흡...")) == 0) {
             AstNode *guard = ast_new_guard_block();
             ast_block_append(root_block, guard);
@@ -432,7 +404,6 @@ AstNode *parser_parse_program(Parser *p) {
             continue;
         }
 
-        // "교주님..." 시작 블록 감지 (단, 교주님...? 질문식이 아닌 경우)
         if (strcmp(p->current.text, "교주님...") == 0 && p->current.type != TOK_QUESTION_END) {
             AstNode *prog = ast_new_prog_block();
             ast_block_append(root_block, prog);
@@ -441,7 +412,6 @@ AstNode *parser_parse_program(Parser *p) {
             continue;
         }
 
-        // "흡...흐흡..." 블록 종료 감지
         if (strstr(p->current.text, "흐흡") || strstr(p->current.text, "흡...흐흡")) {
             active_block = root_block;
             parser_advance(p);

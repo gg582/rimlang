@@ -11,13 +11,10 @@ void lexer_init(Lexer *l, const char *src) {
     l->line = 1;
 }
 
-static void skip_whitespace(Lexer *l) {
+static void skip_spaces_and_comments(Lexer *l) {
     while (l->src[l->cursor]) {
         char c = l->src[l->cursor];
-        if (c == '\n') {
-            l->line++;
-            l->cursor++;
-        } else if (isspace((unsigned char)c)) {
+        if (c == ' ' || c == '\t' || c == '\r') {
             l->cursor++;
         } else if (c == '#' || (c == '/' && l->src[l->cursor+1] == '/')) {
             while (l->src[l->cursor] && l->src[l->cursor] != '\n') {
@@ -30,7 +27,7 @@ static void skip_whitespace(Lexer *l) {
 }
 
 Token lexer_next(Lexer *l) {
-    skip_whitespace(l);
+    skip_spaces_and_comments(l);
     Token tok;
     memset(&tok, 0, sizeof(tok));
     tok.line = l->line;
@@ -40,21 +37,16 @@ Token lexer_next(Lexer *l) {
         return tok;
     }
 
-    const char *curr = &l->src[l->cursor];
+    if (l->src[l->cursor] == '\n') {
+        tok.type = TOK_NEWLINE;
+        tok.text[0] = '\n';
+        tok.text[1] = '\0';
+        l->line++;
+        l->cursor++;
+        return tok;
+    }
 
-    // Check for question terminators (...? or ?) first
-    if (strncmp(curr, "...?", 4) == 0) {
-        tok.type = TOK_QUESTION_END;
-        strcpy(tok.text, "...?");
-        l->cursor += 4;
-        return tok;
-    }
-    if (curr[0] == '?') {
-        tok.type = TOK_QUESTION_END;
-        strcpy(tok.text, "?");
-        l->cursor += 1;
-        return tok;
-    }
+    const char *curr = &l->src[l->cursor];
 
     // Check for block keywords (교주님..., 크흡..., 흡...흐흡...)
     if (strncmp(curr, "교주님...", strlen("교주님...")) == 0 && curr[strlen("교주님...")] != '?') {
@@ -73,33 +65,6 @@ Token lexer_next(Lexer *l) {
         tok.type = TOK_IDENT;
         strcpy(tok.text, "흡...흐흡...");
         l->cursor += strlen("흡...흐흡...");
-        return tok;
-    }
-
-    // Check for punchline laughter & punctuation terminators
-    const char *terminators[] = {
-        "후후후....", "푸흐흐흐....", "푸흡...", "푸훗.", "풉.", "....", "..."
-    };
-    for (size_t i = 0; i < sizeof(terminators)/sizeof(terminators[0]); ++i) {
-        size_t len = strlen(terminators[i]);
-        if (strncmp(curr, terminators[i], len) == 0) {
-            tok.type = TOK_ANSWER_END;
-            strncpy(tok.text, terminators[i], sizeof(tok.text) - 1);
-            l->cursor += len;
-            return tok;
-        }
-    }
-
-    if (curr[0] == ':') {
-        tok.type = TOK_COLON;
-        tok.text[0] = ':';
-        l->cursor++;
-        return tok;
-    }
-    if (curr[0] == ',') {
-        tok.type = TOK_COMMA;
-        tok.text[0] = ',';
-        l->cursor++;
         return tok;
     }
 
@@ -131,19 +96,20 @@ Token lexer_next(Lexer *l) {
         return tok;
     }
 
-    // Identifiers and Korean words
+    // Identifiers and Korean words (including punctuation inside sentences)
     tok.type = TOK_IDENT;
     size_t idx = 0;
-    while (l->src[l->cursor] && !isspace((unsigned char)l->src[l->cursor])) {
-        char c = l->src[l->cursor];
-        if (c == '?' || c == ':' || c == ',' || c == '"') break;
-        if (c == '.' && l->src[l->cursor+1] == '.' && l->src[l->cursor+2] == '.') break;
+    while (l->src[l->cursor] && !isspace((unsigned char)l->src[l->cursor]) && l->src[l->cursor] != '\n') {
         if (idx < sizeof(tok.text) - 1) {
-            tok.text[idx++] = c;
+            tok.text[idx++] = l->src[l->cursor];
         }
         l->cursor++;
     }
     tok.text[idx] = '\0';
+
+    if (strstr(tok.text, "?")) {
+        tok.type = TOK_QUESTION_END;
+    }
     return tok;
 }
 

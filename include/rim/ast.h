@@ -27,6 +27,7 @@ typedef enum {
     NODE_ASSERT,      // Assert listener (낫 저스트 어 낫)
     NODE_PRINT,       // Expression or string output ("림...")
     NODE_INPUT,       // Interactive user input ("흡...")
+    NODE_FUNC_DEF,    // "림하하..." <이름> ~ "하하..람..." 함수/규칙 정의 블록
     NODE_GUARD_BLOCK, // "크흡..." ~ "흡...흐흡..." 결정론 가드 블록 (LLM 평가 완전 차단)
     NODE_PROG_BLOCK,  // "교주님..." ~ "흡...흐흡..." 결정론적 산식 실행 블록
     NODE_LLM_QUERY,   // Turing string passed to LLM oracle for solution
@@ -124,6 +125,11 @@ struct AstNode {
         } input_stmt;
 
         struct {
+            char func_name[64];
+            AstNode *body;
+        } func_def;
+
+        struct {
             AstNode *expr;
         } llm_query_stmt;
 
@@ -150,6 +156,7 @@ AstNode *ast_new_if(AstNode *cond, AstNode *body);
 AstNode *ast_new_assert(AstNode *cond, const char *msg);
 AstNode *ast_new_print(AstNode *expr);
 AstNode *ast_new_input(const char *prompt, const char *target_var);
+AstNode *ast_new_func_def(const char *name, AstNode *body);
 AstNode *ast_new_llm_query(AstNode *expr);
 AstNode *ast_new_block(void);
 AstNode *ast_new_guard_block(void);
