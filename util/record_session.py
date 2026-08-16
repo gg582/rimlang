@@ -48,7 +48,7 @@ def render_terminal_frame(lines, width=860, height=540):
     visible_lines = lines[-max_visible_lines:] if len(lines) > max_visible_lines else lines
 
     for line in visible_lines:
-        if line.startswith("림>"):
+        if line.startswith("림>") or line.startswith("..>"):
             draw.text((20, y), line, fill="#89b4fa", font=font)
         elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "메론빵", "바나나킥", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
             draw.text((20, y), line, fill="#f5c2e7", font=font)

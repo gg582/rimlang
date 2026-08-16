@@ -1,6 +1,6 @@
 /**
  * @file main.c
- * @brief Main Entrypoint & REPL for RimLang (사도 림의 유머극장).
+ * @brief Main Entrypoint & Multi-line Dialogue REPL for RimLang.
  */
 
 #include "rim/common.h"
@@ -20,11 +20,21 @@ static void run_repl(int workers) {
         engine_init(&engine, workers);
     }
 
-    char line[1024];
+    char multiline_buf[4096] = {0};
+    bool in_block = false;
+    char pending_question[512] = {0};
+
     while (1) {
-        printf("림> ");
+        if (in_block) {
+            printf("..> ");
+        } else if (pending_question[0] != '\0') {
+            printf("..> ");
+        } else {
+            printf("림> ");
+        }
         fflush(stdout);
 
+        char line[1024];
         if (!fgets(line, sizeof(line), stdin)) {
             break;
         }
@@ -34,13 +44,79 @@ static void run_repl(int workers) {
             line[--len] = '\0';
         }
 
-        if (len == 0) continue;
+        if (len == 0 && !in_block && pending_question[0] == '\0') continue;
         if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0 || strcmp(line, "끝.") == 0) {
             printf("후후후...\n");
             fflush(stdout);
             break;
         }
 
+        // Check for block start (림하하..., 크흡..., 교주님...)
+        if (strncmp(line, "림하하...", 9) == 0 || strncmp(line, "크흡...", 6) == 0 ||
+            (strncmp(line, "교주님...", 9) == 0 && !strstr(line, "?"))) {
+            in_block = true;
+            snprintf(multiline_buf, sizeof(multiline_buf), "%s\n", line);
+            continue;
+        }
+
+        // Inside block accumulation
+        if (in_block) {
+            strncat(multiline_buf, line, sizeof(multiline_buf) - strlen(multiline_buf) - 2);
+            strcat(multiline_buf, "\n");
+            if (strstr(line, "하하...림") || strstr(line, "하하..림") || strstr(line, "흡...흐흡")) {
+                in_block = false;
+                Parser parser;
+                parser_init(&parser, multiline_buf);
+                AstNode *node = parser_parse_program(&parser);
+                if (node) {
+                    if (workers > 1) {
+                        engine_eval_program(&engine, &vm, node);
+                    } else {
+                        vm_eval_node(&vm, node);
+                        if (vm.last_output[0]) {
+                            printf("%s\n", vm.last_output);
+                            fflush(stdout);
+                        }
+                    }
+                    ast_free(node);
+                }
+                multiline_buf[0] = '\0';
+            }
+            continue;
+        }
+
+        // 2-line QA Pair Accumulation in REPL
+        if (pending_question[0] == '\0' && (strstr(line, "?") || strstr(line, "...?"))) {
+            // First line of QA pair: hold pending and prompt for second line
+            strncpy(pending_question, line, sizeof(pending_question) - 1);
+            continue;
+        }
+
+        if (pending_question[0] != '\0') {
+            // Second line arrived: evaluate pair
+            snprintf(multiline_buf, sizeof(multiline_buf), "%s\n%s\n", pending_question, line);
+            pending_question[0] = '\0';
+
+            Parser parser;
+            parser_init(&parser, multiline_buf);
+            AstNode *node = parser_parse_qa_pair(&parser);
+            if (node) {
+                if (workers > 1) {
+                    engine_eval_program(&engine, &vm, node);
+                } else {
+                    vm_eval_node(&vm, node);
+                    if (vm.last_output[0]) {
+                        printf("%s\n", vm.last_output);
+                        fflush(stdout);
+                    }
+                }
+                ast_free(node);
+            }
+            multiline_buf[0] = '\0';
+            continue;
+        }
+
+        // Single line statement (e.g. function call, prefix delimiter, etc.)
         Parser parser;
         parser_init(&parser, line);
         AstNode *node = parser_parse_qa_pair(&parser);
@@ -51,8 +127,8 @@ static void run_repl(int workers) {
                 vm_eval_node(&vm, node);
                 if (vm.last_output[0]) {
                     printf("%s\n", vm.last_output);
+                    fflush(stdout);
                 }
-                fflush(stdout);
             }
             ast_free(node);
         }
@@ -73,8 +149,8 @@ static void eval_and_print_ast(RimVM *vm, AstNode *node) {
         vm_eval_node(vm, node);
         if (vm->last_output[0]) {
             printf("%s\n", vm->last_output);
+            fflush(stdout);
         }
-        fflush(stdout);
     }
 }
 
