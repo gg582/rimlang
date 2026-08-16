@@ -38,8 +38,8 @@ def render_terminal_frame(lines, width=880, height=560):
     draw.ellipse([(32, 12), (42, 22)], fill="#f9e2af")
     draw.ellipse([(50, 12), (60, 22)], fill="#a6e3a1")
 
-    title_text = "사도 림의 유머극장 (Pure Deterministic Turing REPL)"
-    draw.text((width // 2 - 200, 8), title_text, fill="#a6adc8", font=font)
+    title_text = "사도 림의 유머극장"
+    draw.text((width // 2 - 80, 8), title_text, fill="#a6adc8", font=font)
 
     y = 50
     line_height = 24
@@ -52,7 +52,7 @@ def render_terminal_frame(lines, width=880, height=560):
             draw.text((20, y), line, fill="#89b4fa", font=font)
         elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
             draw.text((20, y), line, fill="#f5c2e7", font=font)
-        elif "거짓" in line or "참" in line or "[결산]" in line or "[결산완료]" in line:
+        elif "거짓" in line or "참" in line:
             draw.text((20, y), line, fill="#a6e3a1", font=font)
         else:
             draw.text((20, y), line, fill="#cdd6f4", font=font)
@@ -62,32 +62,32 @@ def render_terminal_frame(lines, width=880, height=560):
 
 def main():
     commands = [
-        # [1] 사용자 정의 튜링 함수 선언 (림하하... ~ 하하...림...)
+        # 1. 사용자 함수 정의
         "림하하...",
         "통모짜핫도그",
         "통모짜핫도그의 반대말은?",
         "요즘잘자쿨냥이. 풉. 푸흐흐흐....",
         "하하...림...",
 
-        # [2] 결정론적 함수 호출 치환
+        # 2. 함수 호출
         "통모짜핫도그",
 
-        # [3] 비명 소리 추출 문답 (첫 음절 탈락)
+        # 3. 비명 추출 문답
         "케이크가 지르는 비명은...?",
         "케이크가 비명을 지르면 이크.",
 
-        # [4] 접두 구분자 기반 축약자 (.....)
+        # 4. 접두 구분자
         "이제 .....냉각기 .....무쓸모인거에요...푸훗.",
 
-        # [5] 삼항연산자 조건 완성 분기
+        # 5. 삼항 조건 분기
         "해골 가면을 쓴 림과, 가면을 안 쓴 림으로 나누어 게임을 했지요.",
         "가면을 쓴 림은 바로 낯.가.림.입니다. 푸흡...",
 
-        # [6] 아티팩트 타입 단언 (assert & not just a not)
+        # 6. 단언문
         "친구가 없을 때 낫이 혼자 나의 개그를 들어줬었거든요.",
         "그러니까 이 낫은 낫 저스트 어 낫...후후후....",
 
-        # [7] 종료
+        # 7. 종료
         "끝."
     ]
 
