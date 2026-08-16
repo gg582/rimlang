@@ -1,0 +1,33 @@
+# C/C++ Build Artifacts & Objects
+*.o
+*.a
+*.so
+*.dylib
+*.out
+rimlang
+test_runner
+
+# Python Virtual Environments & Packages
+venv/
+lang/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files, Logs & Scratch
+*.tmp
+*.log
+scratch/
