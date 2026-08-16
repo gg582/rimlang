@@ -1,6 +1,6 @@
 /**
  * @file parser.c
- * @brief Semantic Dialogue Parser powered by Kiwi Morphological NLP Engine.
+ * @brief Semantic Dialogue Parser with Guard Blocks & LLM control.
  */
 
 #include "rim/parser.h"
@@ -110,6 +110,22 @@ AstNode *ast_new_print(AstNode *expr) {
     AstNode *n = calloc(1, sizeof(AstNode));
     n->type = NODE_PRINT;
     n->print_stmt.expr = expr;
+    strcpy(n->print_stmt.prefix, "림...");
+    return n;
+}
+
+AstNode *ast_new_input(const char *prompt, const char *target_var) {
+    AstNode *n = calloc(1, sizeof(AstNode));
+    n->type = NODE_INPUT;
+    snprintf(n->input_stmt.prompt, sizeof(n->input_stmt.prompt), "%s", prompt ? prompt : "흡...");
+    snprintf(n->input_stmt.target_var, sizeof(n->input_stmt.target_var), "%s", target_var ? target_var : "");
+    return n;
+}
+
+AstNode *ast_new_llm_query(AstNode *expr) {
+    AstNode *n = calloc(1, sizeof(AstNode));
+    n->type = NODE_LLM_QUERY;
+    n->llm_query_stmt.expr = expr;
     return n;
 }
 
@@ -121,8 +137,26 @@ AstNode *ast_new_block(void) {
     return n;
 }
 
+AstNode *ast_new_guard_block(void) {
+    AstNode *n = calloc(1, sizeof(AstNode));
+    n->type = NODE_GUARD_BLOCK;
+    n->no_llm_guard = true;
+    n->block.is_guarded = true;
+    n->block.capacity = 16;
+    n->block.statements = calloc(n->block.capacity, sizeof(AstNode *));
+    return n;
+}
+
+AstNode *ast_new_prog_block(void) {
+    AstNode *n = calloc(1, sizeof(AstNode));
+    n->type = NODE_PROG_BLOCK;
+    n->block.capacity = 16;
+    n->block.statements = calloc(n->block.capacity, sizeof(AstNode *));
+    return n;
+}
+
 void ast_block_append(AstNode *block, AstNode *stmt) {
-    if (!block || block->type != NODE_BLOCK || !stmt) return;
+    if (!block || !stmt) return;
     if (block->block.count >= block->block.capacity) {
         block->block.capacity *= 2;
         block->block.statements = realloc(block->block.statements, block->block.capacity * sizeof(AstNode *));
@@ -168,7 +202,12 @@ void ast_free(AstNode *node) {
         case NODE_PRINT:
             ast_free(node->print_stmt.expr);
             break;
+        case NODE_LLM_QUERY:
+            ast_free(node->llm_query_stmt.expr);
+            break;
         case NODE_BLOCK:
+        case NODE_GUARD_BLOCK:
+        case NODE_PROG_BLOCK:
             for (size_t i = 0; i < node->block.count; ++i) {
                 ast_free(node->block.statements[i]);
             }
@@ -264,8 +303,16 @@ AstNode *parser_parse_qa_pair(Parser *p) {
 
     char q_buf[512] = {0};
     bool is_realtime = false;
+    bool is_print_line = false;
 
-    // Collect all tokens for the statement until TOK_QUESTION_END or TOK_ANSWER_END
+    if (strcmp(p->current.text, "림") == 0 && (strcmp(p->peek.text, "...") == 0 || strcmp(p->peek.text, "....") == 0)) {
+        is_print_line = true;
+        parser_advance(p);
+        parser_advance(p);
+    }
+
+    int start_line = p->current.line;
+
     while (p->current.type != TOK_EOF) {
         if (strncmp(p->current.text, "~~~", 3) == 0) {
             while (p->current.type != TOK_EOF) parser_advance(p);
@@ -282,13 +329,38 @@ AstNode *parser_parse_qa_pair(Parser *p) {
             parser_advance(p);
             break;
         }
+        if (p->peek.line > start_line) {
+            parser_advance(p);
+            break;
+        }
         parser_advance(p);
     }
 
     AstNode *result = NULL;
     const char *target_sentence = q_buf;
 
-    // 1. SBN OISC instruction
+    // 1. "림..." 출력문
+    if (is_print_line) {
+        result = ast_new_print(ast_new_literal(rim_str(target_sentence)));
+        result->is_realtime = is_realtime;
+        return result;
+    }
+
+    // 2. "교주님...?" 질문식
+    if (strstr(target_sentence, "교주님") && (strstr(target_sentence, "?") || strstr(target_sentence, "...?"))) {
+        result = ast_new_literal(rim_str("교주님...?"));
+        result->is_realtime = is_realtime;
+        return result;
+    }
+
+    // 3. "흡..." 입력문
+    if (strstr(target_sentence, "흡...") && !strstr(target_sentence, "흐흡")) {
+        result = ast_new_input("흡...", "ans");
+        result->is_realtime = is_realtime;
+        return result;
+    }
+
+    // 4. SBN OISC 명령어
     if (strstr(target_sentence, "흘려서") || strstr(target_sentence, "흘려")) {
         int64_t a = 0, b = 0, c = 0;
         const char *tok1 = target_sentence;
@@ -309,7 +381,7 @@ AstNode *parser_parse_qa_pair(Parser *p) {
         return result;
     }
 
-    // 2. FlipJump OISC instruction
+    // 5. FlipJump OISC 명령어
     if (strstr(target_sentence, "후라이팬") || strstr(target_sentence, "뒤집")) {
         int64_t a = 0, b = 0, c = 0;
         const char *tok1 = target_sentence;
@@ -330,7 +402,7 @@ AstNode *parser_parse_qa_pair(Parser *p) {
         return result;
     }
 
-    // 3. Kiwi Morphological NLP Engine: Evaluate question dynamically
+    // 6. Kiwi 형태소 및 LLM 질의 연동
     NlpAnalysisResult nlp;
     if (kor_nlp_analyze(target_sentence, &nlp) && nlp.punchline[0] != '\0') {
         result = ast_new_literal(rim_str(nlp.punchline));
@@ -338,7 +410,6 @@ AstNode *parser_parse_qa_pair(Parser *p) {
         return result;
     }
 
-    // Default formatted print
     result = ast_new_print(ast_new_literal(rim_str(target_sentence)));
     result->is_realtime = is_realtime;
     return result;
@@ -348,12 +419,42 @@ AstNode *parser_parse_program(Parser *p) {
     kor_nlp_init();
     parse_dynamic_footer_section(p->lexer.src);
 
-    AstNode *block = ast_new_block();
+    AstNode *root_block = ast_new_block();
+    AstNode *active_block = root_block;
+
     while (p->current.type != TOK_EOF) {
+        // "크흡..." 시작 블록 감지
+        if (strncmp(p->current.text, "크흡...", strlen("크흡...")) == 0) {
+            AstNode *guard = ast_new_guard_block();
+            ast_block_append(root_block, guard);
+            active_block = guard;
+            parser_advance(p);
+            continue;
+        }
+
+        // "교주님..." 시작 블록 감지 (단, 교주님...? 질문식이 아닌 경우)
+        if (strcmp(p->current.text, "교주님...") == 0 && p->current.type != TOK_QUESTION_END) {
+            AstNode *prog = ast_new_prog_block();
+            ast_block_append(root_block, prog);
+            active_block = prog;
+            parser_advance(p);
+            continue;
+        }
+
+        // "흡...흐흡..." 블록 종료 감지
+        if (strstr(p->current.text, "흐흡") || strstr(p->current.text, "흡...흐흡")) {
+            active_block = root_block;
+            parser_advance(p);
+            continue;
+        }
+
         AstNode *stmt = parser_parse_qa_pair(p);
         if (stmt) {
-            ast_block_append(block, stmt);
+            if (active_block->no_llm_guard) {
+                stmt->no_llm_guard = true;
+            }
+            ast_block_append(active_block, stmt);
         }
     }
-    return block;
+    return root_block;
 }

@@ -1,6 +1,6 @@
 /**
  * @file lexer.c
- * @brief Lexical analyzer implementation for RimLang.
+ * @brief Tokenizer for RimLang Korean Esoteric Language.
  */
 
 #include "rim/lexer.h"
@@ -19,7 +19,7 @@ static void skip_whitespace(Lexer *l) {
             l->cursor++;
         } else if (isspace((unsigned char)c)) {
             l->cursor++;
-        } else if (c == '#' || (c == '/' && l->src[l->cursor + 1] == '/')) {
+        } else if (c == '#' || (c == '/' && l->src[l->cursor+1] == '/')) {
             while (l->src[l->cursor] && l->src[l->cursor] != '\n') {
                 l->cursor++;
             }
@@ -42,7 +42,7 @@ Token lexer_next(Lexer *l) {
 
     const char *curr = &l->src[l->cursor];
 
-    // Check for question terminators (...? or ?)
+    // Check for question terminators (...? or ?) first
     if (strncmp(curr, "...?", 4) == 0) {
         tok.type = TOK_QUESTION_END;
         strcpy(tok.text, "...?");
@@ -56,9 +56,29 @@ Token lexer_next(Lexer *l) {
         return tok;
     }
 
+    // Check for block keywords (교주님..., 크흡..., 흡...흐흡...)
+    if (strncmp(curr, "교주님...", strlen("교주님...")) == 0 && curr[strlen("교주님...")] != '?') {
+        tok.type = TOK_IDENT;
+        strcpy(tok.text, "교주님...");
+        l->cursor += strlen("교주님...");
+        return tok;
+    }
+    if (strncmp(curr, "크흡...", strlen("크흡...")) == 0) {
+        tok.type = TOK_IDENT;
+        strcpy(tok.text, "크흡...");
+        l->cursor += strlen("크흡...");
+        return tok;
+    }
+    if (strncmp(curr, "흡...흐흡...", strlen("흡...흐흡...")) == 0) {
+        tok.type = TOK_IDENT;
+        strcpy(tok.text, "흡...흐흡...");
+        l->cursor += strlen("흡...흐흡...");
+        return tok;
+    }
+
     // Check for punchline laughter & punctuation terminators
     const char *terminators[] = {
-        "후후후....", "푸흐흐흐....", "푸흡...", "푸훗.", "풉.", "....", "...", "."
+        "후후후....", "푸흐흐흐....", "푸흡...", "푸훗.", "풉.", "....", "..."
     };
     for (size_t i = 0; i < sizeof(terminators)/sizeof(terminators[0]); ++i) {
         size_t len = strlen(terminators[i]);
@@ -116,7 +136,8 @@ Token lexer_next(Lexer *l) {
     size_t idx = 0;
     while (l->src[l->cursor] && !isspace((unsigned char)l->src[l->cursor])) {
         char c = l->src[l->cursor];
-        if (c == '?' || c == '.' || c == ':' || c == ',' || c == '"') break;
+        if (c == '?' || c == ':' || c == ',' || c == '"') break;
+        if (c == '.' && l->src[l->cursor+1] == '.' && l->src[l->cursor+2] == '.') break;
         if (idx < sizeof(tok.text) - 1) {
             tok.text[idx++] = c;
         }

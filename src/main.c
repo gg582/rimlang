@@ -1,32 +1,29 @@
 /**
  * @file main.c
- * @brief RimLang Entry Point & Interactive REPL.
+ * @brief Main Entrypoint & REPL for RimLang (사도 림의 유머극장).
  */
 
 #include "rim/common.h"
+#include "rim/ast.h"
 #include "rim/parser.h"
 #include "rim/runtime.h"
 #include "rim/engine.h"
 #include "rim/joke_table.h"
-#include "rim/korean_synonym.h"
 #include "rim/korean_nlp.h"
-#include <unistd.h>
-
-#define MAX_DEFERRED_STMT 64
 
 typedef struct {
     char raw_text[512];
     bool is_resolved;
 } DeferredStatement;
 
-static DeferredStatement s_deferred_stack[MAX_DEFERRED_STMT];
+static DeferredStatement s_deferred_stack[64];
 static size_t s_deferred_count = 0;
 
 static void parse_single_table_line(const char *line) {
-    if (!line) return;
+    if (!line || strncmp(line, "~~~", 3) == 0) return;
+
     char key[128] = {0};
     char val[128] = {0};
-
     const char *p_is = strstr(line, "은");
     if (!p_is) p_is = strstr(line, "는");
     if (!p_is) p_is = strstr(line, "->");
@@ -70,13 +67,9 @@ static void eval_deferred_stack(RimVM *vm, RimEngine *engine, int workers) {
                 if (workers > 1 && engine) {
                     engine_eval_program(engine, vm, node);
                 } else {
-                    RimValue res = vm_eval_node(vm, node);
+                    vm_eval_node(vm, node);
                     if (vm->last_output[0]) {
                         printf("%s\n", vm->last_output);
-                    } else if (res.type == VAL_INT) {
-                        printf("%ld\n", res.i);
-                    } else if (res.type == VAL_STR) {
-                        printf("%s\n", res.s);
                     }
                     fflush(stdout);
                 }
@@ -89,7 +82,6 @@ static void eval_deferred_stack(RimVM *vm, RimEngine *engine, int workers) {
 
 static bool is_table_definition_line(const char *line) {
     if (strncmp(line, "~~~", 3) == 0) return true;
-    // A table row is like "케이크는 1..." or "서울은 3." (ends with ... or . and is not a question)
     if (strstr(line, "?") || strstr(line, "...?")) return false;
     if ((strstr(line, "는") || strstr(line, "은")) && (strstr(line, "...") || strstr(line, "."))) {
         return true;
@@ -127,31 +119,22 @@ static void run_repl(int workers) {
             break;
         }
 
-        // 1. Dynamic table definition line (only if not a question!)
         if (is_table_definition_line(line)) {
             parse_single_table_line(line);
             eval_deferred_stack(&vm, workers > 1 ? &engine : NULL, workers);
             continue;
         }
 
-        // 2. Statement parse & execute
         Parser parser;
         parser_init(&parser, line);
         AstNode *node = parser_parse_qa_pair(&parser);
-
         if (node) {
             if (workers > 1) {
                 engine_eval_program(&engine, &vm, node);
             } else {
-                RimValue res = vm_eval_node(&vm, node);
+                vm_eval_node(&vm, node);
                 if (vm.last_output[0]) {
                     printf("%s\n", vm.last_output);
-                } else if (res.type == VAL_INT) {
-                    printf("%ld\n", res.i);
-                } else if (res.type == VAL_STR) {
-                    printf("%s\n", res.s);
-                } else if (res.type == VAL_BOOL) {
-                    printf("%s\n", res.b ? "참" : "거짓");
                 }
                 fflush(stdout);
             }
@@ -226,15 +209,9 @@ int main(int argc, char **argv) {
             if (program && program->type == NODE_BLOCK) {
                 for (size_t i = 0; i < program->block.count; ++i) {
                     AstNode *stmt = program->block.statements[i];
-                    RimValue res = vm_eval_node(&vm, stmt);
+                    vm_eval_node(&vm, stmt);
                     if (vm.last_output[0]) {
                         printf("%s\n", vm.last_output);
-                    } else if (res.type == VAL_INT) {
-                        printf("%ld\n", res.i);
-                    } else if (res.type == VAL_STR) {
-                        printf("%s\n", res.s);
-                    } else if (res.type == VAL_BOOL) {
-                        printf("%s\n", res.b ? "참" : "거짓");
                     }
                     fflush(stdout);
                 }
