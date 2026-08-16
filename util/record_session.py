@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Simulates natural interactive human typing into RimLang REPL,
-capturing modern RimLang syntax (User Defined Functions, QA Pairs, Generic Delimiters) into rimlang.gif.
+capturing modern RimLang syntax (User Defined Functions, Clean QA Pairs, Generic Delimiters) into rimlang.gif.
 """
 
 import os
@@ -50,7 +50,7 @@ def render_terminal_frame(lines, width=860, height=540):
     for line in visible_lines:
         if line.startswith("림>"):
             draw.text((20, y), line, fill="#89b4fa", font=font)
-        elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "바나나킥", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
+        elif any(k in line for k in ["푸흡", "후후후", "푸훗", "푸하하", "이크", "메론빵", "바나나킥", "쿨냥이", "낯.가.림", "냉.무", "바로"]):
             draw.text((20, y), line, fill="#f5c2e7", font=font)
         elif "거짓" in line or "참" in line or "[결산완료]" in line:
             draw.text((20, y), line, fill="#a6e3a1", font=font)
@@ -62,23 +62,26 @@ def render_terminal_frame(lines, width=860, height=540):
 
 def main():
     commands = [
-        # 1. 사용자 함수 정의 블록 (림하하... ~ 하하...림...)
+        # [문답 1] 케이크 비명 추출 문답 (독립 쌍)
+        "케이크가 지르는 비명은...?",
+        "케이크가 비명을 지르면 이크.",
+
+        # [문답 2] 예의 없는 빵 다대일 매핑 문답 (독립 쌍)
+        "빵 중에 가장 예의가 없는 빵은?",
+        "그건 바로...메론빵....",
+
+        # [문답 3] 접두 구분자 기반 축약자 (.....)
+        "이제 .....냉각기 .....무쓸모인거에요...푸훗.",
+
+        # [문답 4] 사용자 함수 정의 및 호출 (통모짜 -> 요즘잘자쿨냥이)
         "림하하...",
         "통모짜핫도그",
         "통모짜핫도그의 반대말은?",
         "요즘잘자쿨냥이. 풉. 푸흐흐흐....",
         "하하...림...",
-        # 2. 함수 호출
         "통모짜핫도그",
-        # 3. 비명 소리 추출 문답
-        "케이크가 지르는 비명은...?",
-        "케이크가 비명을 지르면 이크.",
-        # 4. 접두 구분자 기반 축약자 (.....)
-        "이제 .....냉각기 .....무쓸모인거에요...푸훗.",
-        # 5. 삼항연산자 조건 완성 분기
-        "해골 가면을 쓴 림과, 가면을 안 쓴 림으로 나누어 게임을 했지요.",
-        "가면을 쓴 림은 바로 낯.가.림.입니다. 푸흡...",
-        # 6. 세션 종료
+
+        # 종료
         "끝."
     ]
 
@@ -148,7 +151,7 @@ def main():
         time.sleep(0.1)
         os.write(master, b"\n")
         read_output(0.3)
-        capture_frame(500)
+        capture_frame(550)
         time.sleep(0.12)
 
     try:
